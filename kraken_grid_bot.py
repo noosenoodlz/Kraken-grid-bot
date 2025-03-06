@@ -7,8 +7,7 @@ import requests
 
 # 🔹 Replace with your Kraken API Keys
 api_key = "Zzmf8P6h8jzPa1Cu9q7xCFLebFML/QvNul/c1n4ujtil+QEJxHHamW/W"
-api_secret = "tn3ft57r/SR1IfQA6xsDnjA5HKfPH73dTqvXqBHWPoQtYrv87oaoS4Z7zsmmnw1St4JQYHfFi2nC
-cvr2l1R6Wg=="
+api_secret = "tn3ft57r/SR1IfQA6xsDnjA5HKfPH73dTqvXqBHWPoQtYrv87oaoS4Z7zsmmnw1St4JQYHfFi2nCcvr2l1R6Wg=="
 
 # 🔹 Connect to Kraken
 exchange = ccxt.kraken({
