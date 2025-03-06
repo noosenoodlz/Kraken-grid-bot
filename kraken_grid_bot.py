@@ -5,11 +5,11 @@ import os
 import datetime
 import requests
 
-# 🔹 Replace with your Kraken API Keys
+# 🔹 Replace with your Kraken API Keys (Copy & Paste Exactly as Shown in Kraken)
 api_key = "Zzmf8P6h8jzPa1Cu9q7xCFLebFML/QvNul/c1n4ujtil+QEJxHHamW/W"
 api_secret = "tn3ft57r/SR1IfQA6xsDnjA5HKfPH73dTqvXqBHWPoQtYrv87oaoS4Z7zsmmnw1St4JQYHfFi2nCcvr2l1R6Wg=="
 
-# 🔹 Connect to Kraken
+# 🔹 Connect to Kraken Exchange
 exchange = ccxt.kraken({
     'apiKey': api_key,
     'secret': api_secret,
@@ -18,11 +18,11 @@ exchange = ccxt.kraken({
 # 🔹 Trading settings
 symbol = "BTC/USD"  # Trading pair
 grid_levels = 5  # Number of grid orders
-grid_spacing = 100  # USD price gap between orders
-trade_amount = 0.0005  # BTC per order
-trade_log = "kraken_trade_history.csv"  # File to save trades
+grid_spacing = 10  # USD price gap between orders
+trade_amount = 0.0001  # BTC per order
+trade_log = "kraken_trade_history.csv"  # File to save trade history
 
-# 🔹 Telegram Bot Credentials (Optional)
+# 🔹 Telegram Bot Credentials (Optional, for Alerts)
 TELEGRAM_BOT_TOKEN = "your_telegram_bot_token"
 TELEGRAM_CHAT_ID = "7394557654"
 
@@ -32,7 +32,7 @@ def send_telegram_message(message):
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
     requests.post(url, data=payload)
 
-# ✅ Function to fetch current price
+# ✅ Function to fetch current BTC price
 def get_price():
     ticker = exchange.fetch_ticker(symbol)
     return ticker['last']
@@ -53,7 +53,7 @@ def place_grid_orders():
         exchange.create_limit_sell_order(symbol, trade_amount, sell_price)
         print(f"🔴 SELL order placed at {sell_price}")
 
-# ✅ Function to log trades in CSV file
+# ✅ Function to log trades in a CSV file
 def log_trade(trade):
     file_exists = os.path.isfile(trade_log)
     
@@ -88,4 +88,3 @@ def check_and_log_trades():
 print("🚀 Starting Kraken Grid Trading Bot...")
 place_grid_orders()
 check_and_log_trades()
-
