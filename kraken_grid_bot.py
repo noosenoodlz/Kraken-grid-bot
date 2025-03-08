@@ -8,6 +8,7 @@ import dotenv  # Loads environment variables from a .env file
 import threading  # Multi-threaded execution
 import numpy as np  # Numerical operations
 import websockets  # Real-time WebSocket streaming for price data
+import csv  # Logs trade history
 
 # Load environment variables
 dotenv.load_dotenv('/root/.env')
@@ -58,6 +59,13 @@ KRAKEN_WS_URL = "wss://ws.kraken.com"
 # **Real-Time Price Storage**
 live_prices = {}
 
+# **CSV Trade Log Initialization**
+trade_log_file = "kraken_trade_history.csv"
+if not os.path.exists(trade_log_file):
+    with open(trade_log_file, "w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(["Timestamp", "Action", "Pair", "Price", "Amount"])
+
 # **Send Telegram Alerts**
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -66,6 +74,14 @@ def send_telegram_message(message):
         requests.post(url, data=data)
     except Exception as e:
         print(f"⚠ Telegram Message Failed: {e}")
+
+# **Log Trades to CSV**
+def log_trade(action, symbol, price, amount):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(trade_log_file, "a", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow([timestamp, action, symbol, price, amount])
+    print(f"📜 Trade Logged: {action} {amount} {symbol} at ${price}")
 
 # **WebSocket Connection to Kraken**
 async def kraken_websocket():
@@ -108,7 +124,7 @@ def monitor_market():
             if pair in live_prices:
                 current_price = live_prices[pair]
 
-                buy_price = current_price * (1 - 0.005)  # Buy 0.5% lower
+                buy_price = current_price * (1 - 0.005)
                 sell_price = buy_price * (1 + take_profit_percentage)
                 stop_loss_price = buy_price * (1 - stop_loss_percentage)
 
@@ -128,6 +144,7 @@ def place_buy_order(symbol, price):
         order = exchange.create_limit_buy_order(symbol, trade_amount, price)
         print(f"🟢 BOUGHT {trade_amount} {symbol} at ${price}")
         send_telegram_message(f"🟢 BOUGHT {trade_amount} {symbol} at ${price}")
+        log_trade("BUY", symbol, price, trade_amount)
         return price
     except Exception as e:
         print(f"⚠ Buy Order Failed: {e}")
@@ -140,6 +157,7 @@ def place_sell_order(symbol, price):
         order = exchange.create_limit_sell_order(symbol, trade_amount, price)
         print(f"🔴 SOLD {trade_amount} {symbol} at ${price}")
         send_telegram_message(f"🔴 SOLD {trade_amount} {symbol} at ${price}")
+        log_trade("SELL", symbol, price, trade_amount)
     except Exception as e:
         print(f"⚠ Sell Order Failed: {e}")
 
@@ -153,34 +171,10 @@ def hedge_trade(symbol, trade_amount):
         print(f"🔄 Hedging {symbol} by buying {hedge_symbol}...")
         order = exchange.create_market_buy_order(hedge_symbol, trade_amount)
         send_telegram_message(f"🔄 Hedging {symbol} by buying {hedge_symbol}")
+        log_trade("HEDGE", hedge_symbol, "MARKET", trade_amount)
         return order
     except Exception as e:
         print(f"⚠ Hedge Trade Failed: {e}")
-
-# **Monitor Trade Until Profit or Stop-Loss**
-def monitor_trade(symbol, buy_price, sell_price, stop_loss_price):
-    """
-    Watches trade performance and executes take-profit, stop-loss, or hedging.
-    """
-    hedge_triggered = False
-
-    while True:
-        current_price = live_prices.get(symbol, buy_price)
-
-        if current_price >= sell_price:
-            place_sell_order(symbol, current_price)
-            send_telegram_message(f"✅ TAKE PROFIT {symbol} at ${current_price}")
-            break
-
-        elif current_price <= stop_loss_price:
-            if not hedge_triggered:
-                hedge_trade(symbol, base_trade_size)
-                hedge_triggered = True
-            place_sell_order(symbol, current_price)
-            send_telegram_message(f"⛔ STOP-LOSS {symbol} at ${current_price}")
-            break
-
-        time.sleep(3)
 
 # **Run WebSocket in Background**
 websocket_thread = threading.Thread(target=lambda: asyncio.run(kraken_websocket()))
