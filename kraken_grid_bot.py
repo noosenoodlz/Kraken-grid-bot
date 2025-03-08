@@ -35,7 +35,7 @@ except Exception as e:
     exit()
 
 # **Trading Configuration**
-trading_pairs = ["BTC/USD", "ETH/USD", "SOL/USD"]
+trading_pairs = ["BTC/USD", "ETH/USD", "SOL/USD", "DOGE/USD", "ADA/USD", "XRP/USD"]
 base_trade_size = 0.02
 take_profit_percentage = 0.03
 stop_loss_percentage = 0.02
