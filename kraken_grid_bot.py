@@ -42,6 +42,16 @@ stop_loss_percentage = 0.02
 trailing_stop_percentage = 0.015
 cooldown_period = 30  # Cooldown between trades (seconds)
 
+# **Hedging Pairs** (If main trade hits stop-loss, buy hedge asset)
+hedging_pairs = {
+    "BTC/USD": "USDT/USD",
+    "ETH/USD": "USDT/USD",
+    "SOL/USD": "USDT/USD",
+    "DOGE/USD": "USDT/USD",
+    "ADA/USD": "USDT/USD",
+    "XRP/USD": "USDT/USD"
+}
+
 # **WebSocket URL**
 KRAKEN_WS_URL = "wss://ws.kraken.com"
 
@@ -64,7 +74,6 @@ async def kraken_websocket():
     Updates the `live_prices` dictionary with the latest market prices.
     """
     async with websockets.connect(KRAKEN_WS_URL) as ws:
-        # **Subscribe to price feed for trading pairs**
         subscribe_message = {
             "event": "subscribe",
             "pair": trading_pairs,
@@ -78,7 +87,6 @@ async def kraken_websocket():
                 response = await ws.recv()
                 data = json.loads(response)
 
-                # **Ensure it's a valid price update message**
                 if isinstance(data, list) and len(data) > 1:
                     pair = data[-1]
                     price = float(data[1]['c'][0])  # Current price from the update
@@ -100,18 +108,17 @@ def monitor_market():
             if pair in live_prices:
                 current_price = live_prices[pair]
 
-                # **Trade Logic: Buy When Price Drops Significantly**
                 buy_price = current_price * (1 - 0.005)  # Buy 0.5% lower
                 sell_price = buy_price * (1 + take_profit_percentage)
                 stop_loss_price = buy_price * (1 - stop_loss_percentage)
 
-                # **Check if we should buy**
                 print(f"🔍 Checking trade conditions for {pair}: {current_price}")
+
                 if current_price <= buy_price:
                     place_buy_order(pair, buy_price)
                     threading.Thread(target=monitor_trade, args=(pair, buy_price, sell_price, stop_loss_price)).start()
 
-        time.sleep(2)  # Short delay to avoid CPU overload
+        time.sleep(2)
 
 # **Place a Buy Order**
 def place_buy_order(symbol, price):
@@ -136,11 +143,27 @@ def place_sell_order(symbol, price):
     except Exception as e:
         print(f"⚠ Sell Order Failed: {e}")
 
+# **Hedge Trade Function**
+def hedge_trade(symbol, trade_amount):
+    """
+    Opens a hedge trade to minimize loss if stop-loss is near.
+    """
+    try:
+        hedge_symbol = hedging_pairs.get(symbol, "USDT/USD")
+        print(f"🔄 Hedging {symbol} by buying {hedge_symbol}...")
+        order = exchange.create_market_buy_order(hedge_symbol, trade_amount)
+        send_telegram_message(f"🔄 Hedging {symbol} by buying {hedge_symbol}")
+        return order
+    except Exception as e:
+        print(f"⚠ Hedge Trade Failed: {e}")
+
 # **Monitor Trade Until Profit or Stop-Loss**
 def monitor_trade(symbol, buy_price, sell_price, stop_loss_price):
     """
-    Watches trade performance and executes take-profit or stop-loss when needed.
+    Watches trade performance and executes take-profit, stop-loss, or hedging.
     """
+    hedge_triggered = False
+
     while True:
         current_price = live_prices.get(symbol, buy_price)
 
@@ -148,7 +171,11 @@ def monitor_trade(symbol, buy_price, sell_price, stop_loss_price):
             place_sell_order(symbol, current_price)
             send_telegram_message(f"✅ TAKE PROFIT {symbol} at ${current_price}")
             break
+
         elif current_price <= stop_loss_price:
+            if not hedge_triggered:
+                hedge_trade(symbol, base_trade_size)
+                hedge_triggered = True
             place_sell_order(symbol, current_price)
             send_telegram_message(f"⛔ STOP-LOSS {symbol} at ${current_price}")
             break
